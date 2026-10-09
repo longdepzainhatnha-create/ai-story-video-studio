@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI Story Video Studio — Batch</title>
+<style>
+:root{font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#edf2ff;background:#0c1020}
+*{box-sizing:border-box}body{margin:0;background:linear-gradient(145deg,#0c1020,#171b32);min-height:100vh}
+header{padding:24px max(18px,calc((100vw - 1180px)/2));border-bottom:1px solid #303751;background:#11162a}
+h1{margin:0 0 8px;font-size:clamp(24px,4vw,34px)}header p{margin:0;color:#b9c3df;max-width:850px;line-height:1.5}
+main{max-width:1180px;margin:auto;padding:20px;display:grid;grid-template-columns:minmax(0,1fr) minmax(300px,.9fr);gap:18px}
+.panel{background:#151b30;border:1px solid #303955;border-radius:16px;padding:18px;min-width:0}
+h2{font-size:18px;margin:0 0 14px}label{display:block;color:#d4dcf2;font-size:13px;margin:12px 0 6px}
+textarea,input,select{width:100%;background:#0c1122;color:#f4f6ff;border:1px solid #3a4565;border-radius:9px;padding:11px;font:inherit}
+textarea{resize:vertical;min-height:125px}input,select{min-height:42px}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+button{border:0;border-radius:10px;padding:11px 14px;font-weight:700;cursor:pointer;background:#8bb5ff;color:#081020}
+button.secondary{background:#293451;color:#edf2ff;border:1px solid #445173}button:disabled{opacity:.45;cursor:not-allowed}
+.actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+.note{font-size:12px;color:#aab6d4;line-height:1.5;margin-top:10px}
+#status{font-size:13px;color:#a7c8ff;margin-top:10px;white-space:pre-wrap}
+#queue{display:flex;flex-direction:column;gap:8px;max-height:270px;overflow:auto}
+.item{padding:11px;border:1px solid #35405f;border-radius:10px;background:#10162a;display:flex;align-items:center;gap:10px}
+.item.active{border-color:#8bb5ff}.item .meta{min-width:0;flex:1}.item strong{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.item small{color:#aab6d4}
+.item button{padding:7px 9px;font-size:12px}
+canvas{width:100%;max-width:360px;aspect-ratio:9/16;background:#080b16;border-radius:12px;border:1px solid #394360;display:block;margin:0 auto}
+.previewwrap{display:flex;justify-content:center}
+#scriptPreview{white-space:pre-wrap;background:#0c1122;border:1px solid #303955;border-radius:10px;padding:12px;max-height:240px;overflow:auto;font-size:13px;line-height:1.5}
+footer{max-width:1180px;margin:0 auto;padding:0 20px 24px;color:#9eabc9;font-size:12px;line-height:1.6}
+@media(max-width:850px){main{grid-template-columns:1fr}.row{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header><h1>AI Story Video Studio <span style="color:#8bb5ff">/ Batch</span></h1>
+<p>Nhập nhiều ý tưởng một lần → tạo kịch bản và phân cảnh theo mẫu → xem trước → xuất từng video dọc WebM cùng phụ đề SRT. Chạy ngay trên trình duyệt, không cần tài khoản hay API key.</p></header>
+<main>
+<section class="panel">
+<h2>1. Tạo lô nội dung</h2>
+<label for="ideas">Mỗi dòng là một ý tưởng (tối đa 30 dòng/lô)</label>
+<textarea id="ideas" placeholder="Ví dụ:&#10;Cậu bé nhặt được chiếc đồng hồ biết nói&#10;Một chú mèo lạc đường tìm về nhà&#10;Bài học về lòng tốt ở trạm xe buýt"></textarea>
+<div class="row">
+<div><label for="genre">Phong cách</label><select id="genre"><option value="twist">Truyện ngắn có cú twist</option><option value="lesson">Truyện bài học cuộc sống</option><option value="mystery">Bí ẩn / hồi hộp</option><option value="motivation">Truyền cảm hứng</option></select></div>
+<div><label for="duration">Thời lượng mục tiêu</label><select id="duration"><option value="30">Khoảng 30 giây</option><option value="45" selected>Khoảng 45 giây</option><option value="60">Khoảng 60 giây</option></select></div>
+</div>
+<div class="row">
+<div><label for="voice">Giọng đọc trình duyệt</label><select id="voice"><option value="">Mặc định thiết bị</option></select></div>
+<div><label for="theme">Giao diện video</label><select id="theme"><option value="night">Đêm xanh</option><option value="warm">Ấm áp</option><option value="mono">Đen trắng</option></select></div>
+</div>
+<div class="actions"><button id="generate">Tạo kịch bản hàng loạt</button><button class="secondary" id="sample">Thêm ý tưởng mẫu</button><button class="secondary" id="clear">Xóa lô</button></div>
+<div id="status" role="status"></div>
+<p class="note">Lưu ý: phần tạo kịch bản hiện dùng bộ khung và quy tắc cục bộ, không gọi mô hình AI online. Dùng ý tưởng rõ ràng sẽ cho kết quả tốt hơn.</p>
+<h2 style="margin-top:22px">2. Hàng đợi video</h2>
+<div id="queue"><p class="note">Chưa có video. Nhập ý tưởng rồi bấm “Tạo kịch bản hàng loạt”.</p></div>
+<div class="actions"><button id="exportAllScripts" class="secondary" disabled>Tải toàn bộ kịch bản (.txt)</button><button id="exportProject" class="secondary" disabled>Tải dự án (.json)</button></div>
+</section>
+<section class="panel">
+<h2>3. Xem trước và xuất</h2>
+<div class="previewwrap"><canvas id="canvas" width="540" height="960"></canvas></div>
+<div class="actions" style="justify-content:center">
+<button id="preview" class="secondary" disabled>Xem trước cảnh</button><button id="speak" class="secondary" disabled>Đọc thử kịch bản</button>
+<button id="exportVideo" disabled>Xuất video WebM</button>
+</div>
+<div class="row">
+<div><label for="sceneSelect">Chọn cảnh</label><select id="sceneSelect" disabled></select></div>
+<div><label for="speed">Tốc độ chuyển cảnh</label><select id="speed"><option value="3500">Chậm</option><option value="2500" selected>Vừa</option><option value="1800">Nhanh</option></select></div>
+</div>
+<label>Kịch bản hiện tại</label><div id="scriptPreview">Chọn hoặc tạo một video để xem kịch bản.</div>
+<div class="actions"><button id="exportSrt" class="secondary" disabled>Tải phụ đề SRT</button><button id="exportScript" class="secondary" disabled>Tải kịch bản này</button></div>
+<p class="note">Xuất video tạo tệp WebM có chữ và nền động, không bao gồm giọng đọc. Trình duyệt không cho phép ghi trực tiếp âm thanh từ tính năng đọc văn bản vào tệp video một cách ổn định. Có thể dùng giọng đọc để nghe thử; ghép âm thanh sau bằng CapCut hoặc phần mềm dựng video.</p>
+</section>
+</main>
+<footer>Chạy cục bộ trong trình duyệt. Tệp video tải về không cần API. Đây là bản MVP tạo video chữ/đồ họa theo mẫu, chưa phải hệ thống sinh ảnh hoặc video AI chuyển động. Hãy kiểm tra nội dung và bản quyền trước khi đăng.</footer>
+<script>
+const $=id=>document.getElementById(id);
+let videos=[], active=0, voices=[];
+const canvas=$('canvas'),ctx=canvas.getContext('2d');
+function loadVoices(){voices=speechSynthesis.getVoices().filter(v=>/vi|vietnam/i.test(v.lang+' '+v.name));$('voice').innerHTML='<option value="">Mặc định thiết bị</option>'+voices.map((v,i)=>`<option value="${i}">${v.name} (${v.lang})</option>`).join('')}
+if('speechSynthesis' in window){loadVoices();speechSynthesis.onvoiceschanged=loadVoices}
+function clean(s){return s.trim().replace(/\s+/g,' ')}
+function sentence(s){return s.replace(/[.!?…]+$/,'')}
+function makeStory(idea,genre,duration){
+ const x=sentence(clean(idea));
+ let beats;
+ if(genre==='lesson') beats=[
+ `Mọi chuyện bắt đầu khi ${x.charAt(0).toLowerCase()+x.slice(1)}.`,
+ `Ban đầu, nhân vật nghĩ rằng mọi thứ rất đơn giản. Nhưng một lựa chọn nhỏ đã khiến tình huống thay đổi.`,
+ `Khi gặp khó khăn, nhân vật có thể bỏ cuộc hoặc thử một cách khác. Lần này, họ quyết định không bỏ cuộc.`,
+ `Cuối cùng, điều quan trọng nhất không phải phần thưởng, mà là bài học họ nhận ra.`,
+ `Đôi khi, một việc nhỏ cũng đủ thay đổi cả một ngày. Bạn sẽ chọn làm gì nếu ở trong tình huống đó?`
+ ];
+ else if(genre==='mystery') beats=[
+ `Đêm đó, một chuyện kỳ lạ xảy ra: ${x.charAt(0).toLowerCase()+x.slice(1)}.`,
+ `Không ai giải thích được dấu hiệu đầu tiên. Càng tìm hiểu, mọi thứ càng trở nên khó hiểu.`,
+ `Nhân vật phát hiện một chi tiết mà tất cả mọi người đã bỏ qua.`,
+ `Sự thật dần lộ ra: điều đáng sợ nhất không nằm ở nơi họ tưởng.`,
+ `Bạn có đoán ra bí mật trước khi câu chuyện kết thúc không?`
+ ];
+ else if(genre==='motivation') beats=[
+ `Hãy tưởng tượng ${x.charAt(0).toLowerCase()+x.slice(1)}.`,
+ `Mọi thay đổi lớn đều bắt đầu bằng một bước nhỏ, thường là bước chẳng ai nhìn thấy.`,
+ `Có lúc kết quả đến chậm, và bạn bắt đầu nghi ngờ chính mình.`,
+ `Nhưng tiến bộ không phải lúc nào cũng ồn ào. Chỉ cần tiếp tục làm điều đúng, từng ngày.`,
+ `Đừng chờ hoàn hảo mới bắt đầu. Hãy bắt đầu, rồi cải thiện trên đường đi.`
+ ];
+ else beats=[
+ `Một ngày nọ, ${x.charAt(0).toLowerCase()+x.slice(1)}.`,
+ `Lúc đầu, mọi thứ có vẻ bình thường. Nhưng rồi một chi tiết nhỏ khiến nhân vật phải đưa ra quyết định.`,
+ `Nhân vật chọn cách mà không ai ngờ tới, và mọi chuyện bắt đầu thay đổi.`,
+ `Đến cuối cùng, sự thật hoàn toàn khác với điều mọi người nghĩ.`,
+ `Điều bất ngờ là: đôi khi thứ ta tìm kiếm lại ở ngay trước mắt. Bạn có đoán được cú twist không?`
+ ];
+ let n=Number(duration)===30?4:Number(duration)===60?6:5;
+ if(n===6)beats.splice(4,0,'Một khoảnh khắc tưởng như vô nghĩa lại trở thành manh mối quan trọng nhất.');
+ if(n===4)beats=beats.filter((_,i)=>i!==2);
+ const titles={'twist':'Cú twist bất ngờ','lesson':'Bài học cuộc sống','mystery':'Bí ẩn chưa lời giải','motivation':'Một bước nhỏ'};
+ return {title:titles[genre]+': '+x.slice(0,55),idea,scenes:beats.map((text,i)=>({text,caption:text,seconds:Math.max(4,Math.round(Number(duration)/beats.length)),index:i})),genre,duration:Number(duration)};
+}
+function current(){return videos[active]}
+function setStatus(s){$('status').textContent=s}
+function renderQueue(){
+ const q=$('queue');q.innerHTML='';
+ if(!videos.length){q.innerHTML='<p class="note">Chưa có video. Nhập ý tưởng rồi bấm “Tạo kịch bản hàng loạt”.</p>';return}
+ videos.forEach((v,i)=>{const d=document.createElement('div');d.className='item'+(i===active?' active':'');d.innerHTML=`<div class="meta"><strong>${i+1}. ${esc(v.title)}</strong><small>${v.scenes.length} cảnh · khoảng ${v.duration}s</small></div><button class="secondary" data-i="${i}">Mở</button>`;d.querySelector('button').onclick=()=>selectVideo(i);q.appendChild(d)});
+}
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function selectVideo(i){active=i;const v=current();renderQueue();$('scriptPreview').textContent=v.title+'\n\n'+v.scenes.map((s,j)=>`CẢNH ${j+1}\n${s.text}`).join('\n\n');$('sceneSelect').innerHTML=v.scenes.map((s,j)=>`<option value="${j}">Cảnh ${j+1}</option>`).join('');['preview','speak','exportVideo','exportSrt','exportScript'].forEach(id=>$(id).disabled=false);$('sceneSelect').disabled=false;drawScene(0)}
+function generate(){
+ const ideas=$('ideas').value.split('\n').map(clean).filter(Boolean);
+ if(!ideas.length){setStatus('Nhập ít nhất một ý tưởng.');return}
+ if(ideas.length>30){setStatus('Một lô tối đa 30 ý tưởng. Hãy chia thành nhiều lô.');return}
+ videos=ideas.map(idea=>makeStory(idea,$('genre').value,$('duration').value));active=0;renderQueue();selectVideo(0);$('exportAllScripts').disabled=false;$('exportProject').disabled=false;setStatus(`Đã tạo ${videos.length} kịch bản theo mẫu. Hãy đọc lại và chỉnh nội dung trước khi xuất.`)
+}
+function drawScene(index,t=0){
+ const v=current();if(!v)return;
+ const scene=v.scenes[index];if(!scene)return;
+ let bg1='#091328',bg2='#172b55',accent='#91c5ff';
+ if($('theme').value==='warm'){bg1='#25160f';bg2='#68402c';accent='#ffd29c'}
+ if($('theme').value==='mono'){bg1='#080808';bg2='#343434';accent='#eeeeee'}
+ const g=ctx.createLinearGradient(0,0,canvas.width,canvas.height);g.addColorStop(0,bg1);g.addColorStop(1,bg2);ctx.fillStyle=g;ctx.fillRect(0,0,canvas.width,canvas.height);
+ for(let i=0;i<38;i++){let x=(i*97+Math.sin(t/600+i)*30)%canvas.width;let y=(i*173+t/10)%canvas.height;ctx.fillStyle='rgba(255,255,255,.12)';ctx.beginPath();ctx.arc(x,y,1+(i%3),0,Math.PI*2);ctx.fill()}
+ ctx.fillStyle=accent;ctx.font='bold 23px system-ui';ctx.textAlign='center';ctx.fillText('AI STORY • '+String(index+1).padStart(2,'0'),270,105);
+ ctx.fillStyle='rgba(255,255,255,.13)';ctx.fillRect(46,175,448,610);
+ ctx.fillStyle='#fff';ctx.font='bold 38px system-ui';
+ const words=scene.caption.split(/\s+/);let lines=[],line='';
+ for(const word of words){let test=line?line+' '+word:word;if(ctx.measureText(test).width>390&&line){lines.push(line);line=word}else line=test}if(line)lines.push(line);
+ const lineH=52,total=lines.length*lineH,startY=480-total/2;
+ lines.slice(0,8).forEach((l,i)=>ctx.fillText(l,270,startY+i*lineH));
+ ctx.fillStyle=accent;ctx.fillRect(65,820,410,5);ctx.fillStyle='rgba(255,255,255,.7)';ctx.font='20px system-ui';ctx.fillText(v.title.slice(0,42),270,875);
+ ctx.fillStyle='rgba(255,255,255,.55)';ctx.font='16px system-ui';ctx.fillText('Câu chuyện ngắn • Xem đến cuối',270,915);
+}
+function preview(){let i=0;const v=current();const step=()=>{if(i>=v.scenes.length)return;$('sceneSelect').value=i;drawScene(i);i++;setTimeout(step,Number($('speed').value))};step()}
+function scriptText(v){return v.title+'\nÝ tưởng: '+v.idea+'\n\n'+v.scenes.map((s,i)=>`CẢNH ${i+1} (${s.seconds}s)\n${s.text}`).join('\n\n')}
+function download(name,content,type='text/plain;charset=utf-8'){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([content],{type}));a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1500)}
+function srt(v){let time=0,out=[];v.scenes.forEach((s,i)=>{const start=time;time+=s.seconds*1000;const end=time;out.push(`${i+1}\n${fmt(start)} --> ${fmt(end)}\n${s.caption}\n`)});return out.join('\n')}
+function fmt(ms){const h=Math.floor(ms/3600000),m=Math.floor(ms%3600000/60000),s=Math.floor(ms%60000/1000),z=Math.floor(ms%1000);return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')},${String(z).padStart(3,'0')}`}
+async function exportVideo(){
+ const v=current();if(!canvas.captureStream||!window.MediaRecorder){setStatus('Trình duyệt này không hỗ trợ xuất WebM. Hãy thử Chrome hoặc Edge trên máy tính.');return}
+ $('exportVideo').disabled=true;setStatus('Đang dựng video. Không đóng tab cho đến khi tải xong…');
+ const stream=canvas.captureStream(30),chunks=[];let recorder;
+ try{recorder=new MediaRecorder(stream,{mimeType:'video/webm;codecs=vp9'})}catch(e){recorder=new MediaRecorder(stream)}
+ recorder.ondataavailable=e=>{if(e.data.size)chunks.push(e.data)};
+ recorder.onstop=()=>{download(slug(v.title)+'.webm',new Blob(chunks,{type:'video/webm'}),'video/webm');stream.getTracks().forEach(t=>t.stop());$('exportVideo').disabled=false;setStatus('Đã xuất video WebM. Âm thanh chưa được trộn vào tệp.')};
+ recorder.start();let i=0,sceneStart=performance.now(),duration=0;v.scenes.forEach(s=>duration+=s.seconds*1000);
+ function frame(now){let elapsed=now-sceneStart;let cumulative=0,idx=0;for(let j=0;j<v.scenes.length;j++){if(elapsed<cumulative+v.scenes[j].seconds*1000){idx=j;break}cumulative+=v.scenes[j].seconds*1000;idx=Math.min(j+1,v.scenes.length-1)}drawScene(idx,elapsed);if(elapsed>=duration){recorder.stop();return}requestAnimationFrame(frame)}
+ requestAnimationFrame(frame);
+}
+function slug(s){return s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,50)||'story-video'}
+$('generate').onclick=generate;
+$('sample').onclick=()=>{$('ideas').value='Một cậu bé nhặt được chiếc đồng hồ biết nói\nChú mèo lạc đường tìm về nhà trong cơn mưa\nNgười lạ trả lại chiếc ví bị đánh rơi\nCô gái nhận được lá thư từ chính mình trong tương lai'};
+$('clear').onclick=()=>{videos=[];active=0;renderQueue();$('scriptPreview').textContent='Chọn hoặc tạo một video để xem kịch bản.';['preview','speak','exportVideo','exportSrt','exportScript','exportAllScripts','exportProject'].forEach(id=>$(id).disabled=true);$('sceneSelect').disabled=true;ctx.clearRect(0,0,canvas.width,canvas.height);setStatus('Đã xóa lô video.')};
+$('sceneSelect').onchange=()=>drawScene(Number($('sceneSelect').value));
+$('theme').onchange=()=>{if(current())drawScene(Number($('sceneSelect').value)||0)};
+$('preview').onclick=preview;
+$('speak').onclick=()=>{if(!('speechSynthesis'in window)){setStatus('Thiết bị không hỗ trợ đọc văn bản.');return}speechSynthesis.cancel();const v=current();const u=new SpeechSynthesisUtterance(v.scenes.map(s=>s.text).join(' '));u.lang='vi-VN';if($('voice').value!==''&&voices[Number($('voice').value)])u.voice=voices[Number($('voice').value)];speechSynthesis.speak(u)};
+$('exportVideo').onclick=exportVideo;
+$('exportSrt').onclick=()=>download(slug(current().title)+'.srt',srt(current()));
+$('exportScript').onclick=()=>download(slug(current().title)+'.txt',scriptText(current()));
+$('exportAllScripts').onclick=()=>download('ai-story-batch-scripts.txt',videos.map((v,i)=>`===== VIDEO ${i+1} =====\n${scriptText(v)}`).join('\n\n'));
+$('exportProject').onclick=()=>download('ai-story-batch-project.json',JSON.stringify({version:1,createdAt:new Date().toISOString(),videos},null,2),'application/json');
+drawScene(0);
+</script>
+</body>
+</html>
